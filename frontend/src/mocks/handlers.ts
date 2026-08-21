@@ -1138,6 +1138,14 @@ export const handlers: HttpHandler[] = [
     });
   }),
 
+  // Handled explicitly so the request cannot escape to a real backend carrying
+  // this mode's fake session token — that returns 401 and signs the user out,
+  // which reads as a random logout rather than "this needs the real API".
+  http.get(`${BASE}/quotations/:id/pdf`, async () => {
+    await delay();
+    return fail(422, 'PDF_UNAVAILABLE', 'PDF generation runs on the server. Set VITE_ENABLE_MOCKS=false and point VITE_API_BASE_URL at the API to download a real PDF.');
+  }),
+
   /* -------------------------------- Invoices ------------------------------ */
   http.get(`${BASE}/invoices`, async ({ request }) => {
     await delay();
@@ -1411,6 +1419,11 @@ export const handlers: HttpHandler[] = [
       url: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
       message,
     });
+  }),
+
+  http.get(`${BASE}/invoices/:id/pdf`, async () => {
+    await delay();
+    return fail(422, 'PDF_UNAVAILABLE', 'PDF generation runs on the server. Set VITE_ENABLE_MOCKS=false and point VITE_API_BASE_URL at the API to download a real PDF.');
   }),
 
   /* -------------------------------- Payments ------------------------------ */
