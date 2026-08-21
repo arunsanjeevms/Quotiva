@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js';
+import { TEMPLATE_ORDER, TEMPLATE_THEMES } from '@/components/documents/templateThemes';
 import type {
   AuditLog,
   BackupJob,
@@ -91,20 +92,23 @@ export const branding: BusinessBranding = {
   faviconUrl: null,
   primaryColor: '#2563EB',
   secondaryColor: '#475569',
+  documentAccentColor: null,
   showLogoOnDocuments: true,
 };
 
 export const settings: BusinessSettings = {
   businessId: BUSINESS_ID,
-  currencyCode: 'USD',
-  currencyName: 'US Dollar',
-  currencySymbol: '$',
+  currencyCode: 'INR',
+  currencyName: 'Indian Rupee',
+  currencySymbol: 'Rs.',
   decimalPlaces: 2,
   symbolPosition: 'before',
   thousandSeparator: ',',
   decimalSeparator: '.',
+  // Invoice uses Classic, quotation uses Modern — different by default so the
+  // demo shows two designs without touching settings.
   defaultInvoiceTemplateId: uid(1, 't'),
-  defaultQuotationTemplateId: uid(6, 't'),
+  defaultQuotationTemplateId: uid(102, 't'),
   defaultTaxId: uid(2, 'x'),
   defaultTaxMode: 'exclusive',
   defaultPaymentTermsDays: 30,
@@ -708,18 +712,24 @@ export const numbering: NumberingSettings[] = [
   },
 ];
 
-export const documentTemplates: DocumentTemplate[] = [
-  { id: uid(1, 't'), key: 'classic', name: 'Classic', documentType: 'invoice', description: 'Serif headings, ruled table, formal.' },
-  { id: uid(2, 't'), key: 'modern', name: 'Modern', documentType: 'invoice', description: 'Colour header band, airy spacing.' },
-  { id: uid(3, 't'), key: 'minimal', name: 'Minimal', documentType: 'invoice', description: 'No rules, whitespace-led.' },
-  { id: uid(4, 't'), key: 'professional', name: 'Professional', documentType: 'invoice', description: 'Tinted panels, strong hierarchy.' },
-  { id: uid(5, 't'), key: 'compact', name: 'Compact', documentType: 'invoice', description: 'Tighter rows for long item lists.' },
-  { id: uid(6, 't'), key: 'classic', name: 'Classic', documentType: 'quotation', description: 'Serif headings, ruled table, formal.' },
-  { id: uid(7, 't'), key: 'modern', name: 'Modern', documentType: 'quotation', description: 'Colour header band, airy spacing.' },
-  { id: uid(8, 't'), key: 'minimal', name: 'Minimal', documentType: 'quotation', description: 'No rules, whitespace-led.' },
-  { id: uid(9, 't'), key: 'professional', name: 'Professional', documentType: 'quotation', description: 'Tinted panels, strong hierarchy.' },
-  { id: uid(10, 't'), key: 'compact', name: 'Compact', documentType: 'quotation', description: 'Tighter rows for long item lists.' },
-];
+/**
+ * Derived from the theme registry so a new design is added in exactly one place.
+ * Each design exists once per document type.
+ */
+export const documentTemplates: DocumentTemplate[] = (
+  ['invoice', 'quotation'] as const
+).flatMap((documentType, typeIndex) =>
+  TEMPLATE_ORDER.map((key, designIndex) => {
+    const theme = TEMPLATE_THEMES[key];
+    return {
+      id: uid(typeIndex * 100 + designIndex + 1, 't'),
+      key,
+      name: theme.name,
+      documentType,
+      description: theme.description,
+    };
+  }),
+);
 
 export const emailTemplates: EmailTemplate[] = [
   {

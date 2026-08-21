@@ -107,6 +107,8 @@ export interface BusinessBranding {
   faviconUrl: string | null;
   primaryColor: string;
   secondaryColor: string;
+  /** Document accent. Null means "follow the primary brand colour". */
+  documentAccentColor: string | null;
   showLogoOnDocuments: boolean;
 }
 
