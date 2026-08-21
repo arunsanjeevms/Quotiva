@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authorize } from '../middleware/resolveTenant.js';
 import { validate } from '../middleware/validate.js';
 import { quotationsService } from '../services/quotations.service.js';
+import { generateDocumentPdf } from '../services/pdf.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { AppError } from '../utils/AppError.js';
 import { logAudit } from '../utils/audit.js';
@@ -105,6 +106,14 @@ quotationsRouter.post('/:id/cancel', authorize('quotation.cancel'), validate({ b
 quotationsRouter.post('/:id/duplicate', authorize('quotation.create'), asyncHandler(async (req, res) => {
   const data = await quotationsService.duplicate(req.tenant!.businessId, req.params['id']!, req.user!.id);
   res.status(201).json({ data });
+}));
+
+quotationsRouter.get('/:id/pdf', authorize('quotation.read'), asyncHandler(async (req, res) => {
+  const quotation = await quotationsService.get(req.tenant!.businessId, req.params['id']!);
+  const pdf = await generateDocumentPdf({ businessId: req.tenant!.businessId, doc: quotation as Record<string, unknown>, docTypeLabel: 'Quotation' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${(quotation as Record<string, unknown>)['quotationNumber']}.pdf"`);
+  res.send(pdf);
 }));
 
 quotationsRouter.get('/:id/whatsapp', authorize('quotation.read'), asyncHandler(async (req, res) => {
