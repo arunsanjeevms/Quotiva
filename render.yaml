@@ -65,8 +65,13 @@ services:
         sync: false
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
-      # Leave "true" to run as a self-contained MSW-backed demo before the
-      # backend/Supabase values above are filled in; set to "false" once they
-      # are, so the app talks to the real API and real Supabase Auth.
+      # "true" runs the app as a self-contained MSW-backed demo with fake auth;
+      # "false" talks to the real API and real Supabase Auth. Now that
+      # quotiva-api is deployed, this must stay "false".
+      #
+      # NOTE: this is declared with a literal `value:`, which makes it
+      # blueprint-managed — Render resets it to whatever is written here on
+      # every blueprint sync, overwriting any dashboard edit. Change it here,
+      # not in the dashboard.
       - key: VITE_ENABLE_MOCKS
-        value: 'true'
+        value: 'false'
