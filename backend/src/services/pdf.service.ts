@@ -7,12 +7,16 @@ import { renderDocumentHtml, type PdfDocument } from './pdfHtml.service.js';
 
 let browserPromise: Promise<Browser> | null = null;
 
-/** Rejects a promise if it hasn't settled within `ms` — prevents a stuck browser launch or page render from hanging the request forever. */
+/** Rejects a promise if it hasn't settled within `ms` — prevents any single stage from hanging the request forever. */
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
   ]);
+}
+
+function log(step: string, extra?: Record<string, unknown>): void {
+  console.log(`[pdf] ${step}`, extra ?? '');
 }
 
 /**
@@ -27,15 +31,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
  */
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    browserPromise = withTimeout(
-      puppeteer.launch({
-        executablePath: await chromium.executablePath(),
-        headless: true,
-        args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      }),
-      20_000,
-      'Browser launch timed out',
-    ).catch((err) => {
+    browserPromise = (async () => {
+      log('resolving chromium executablePath');
+      const executablePath = await withTimeout(chromium.executablePath(), 15_000, 'chromium.executablePath() timed out');
+      log('executablePath resolved', { executablePath });
+      const browser = await withTimeout(
+        puppeteer.launch({
+          executablePath,
+          headless: true,
+          args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        }),
+        20_000,
+        'Browser launch timed out',
+      );
+      log('browser launched');
+      return browser;
+    })().catch((err) => {
       browserPromise = null;
       throw err;
     });
@@ -56,12 +67,22 @@ export async function generateDocumentPdf(params: {
 }): Promise<Buffer> {
   const { businessId, doc, docTypeLabel } = params;
 
-  const [business, branding, settings, templateKey] = await Promise.all([
-    getBusiness(businessId),
-    getBranding(businessId),
-    getSettings(businessId),
-    resolveTemplateKey(businessId, doc['templateId'] as string | null),
-  ]);
+  log('start', { businessId, docTypeLabel });
+
+  const [business, branding, settings, templateKey] = await withTimeout(
+    Promise.all([
+      getBusiness(businessId),
+      getBranding(businessId),
+      getSettings(businessId),
+      resolveTemplateKey(businessId, doc['templateId'] as string | null),
+    ]),
+    10_000,
+    'Fetching business/branding/settings timed out',
+  ).catch((err) => {
+    console.error('[pdf] business/branding/settings fetch failed', err);
+    throw AppError.businessRule('PDF_UNAVAILABLE', 'Could not load business details for the PDF. Try again in a moment.');
+  });
+  log('loaded business context');
 
   const html = renderDocumentHtml({
     doc: { ...doc, templateKey } as unknown as PdfDocument,
@@ -70,32 +91,45 @@ export async function generateDocumentPdf(params: {
     settings,
     docTypeLabel,
   });
+  log('html built', { length: html.length });
 
   let browser: Browser;
   try {
     browser = await getBrowser();
   } catch (err) {
-    console.error('Chromium launch failed', err);
+    console.error('[pdf] Chromium launch failed', err);
     throw AppError.businessRule('PDF_UNAVAILABLE', 'PDF rendering is temporarily unavailable. Try again in a moment.');
   }
 
-  const page = await browser.newPage();
+  let page;
   try {
-    return await withTimeout(
+    page = await withTimeout(browser.newPage(), 10_000, 'newPage() timed out');
+  } catch (err) {
+    console.error('[pdf] newPage failed', err);
+    browserPromise = null;
+    void browser.close().catch(() => {});
+    throw AppError.businessRule('PDF_UNAVAILABLE', 'PDF rendering is temporarily unavailable. Try again in a moment.');
+  }
+
+  try {
+    const result = await withTimeout(
       (async () => {
         await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15_000 });
+        log('content set');
         const pdf = await page.pdf({
           format: settings.pageSize === 'Letter' ? 'letter' : 'a4',
           printBackground: true,
           margin: { top: '0', bottom: '0', left: '0', right: '0' },
         });
+        log('pdf rendered', { bytes: pdf.length });
         return Buffer.from(pdf);
       })(),
       20_000,
       'PDF rendering timed out',
     );
+    return result;
   } catch (err) {
-    console.error('PDF generation failed', err);
+    console.error('[pdf] rendering failed', err);
     throw AppError.businessRule('PDF_UNAVAILABLE', 'PDF rendering is temporarily unavailable. Try again in a moment.');
   } finally {
     await page.close().catch(() => {});
