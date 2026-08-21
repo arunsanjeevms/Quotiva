@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* neutrals */
+    --gray-50: 248 250 252;
+    --gray-100: 241 245 249;
+    --gray-200: 226 232 240;
+    --gray-300: 203 213 225;
+    --gray-400: 148 163 184;
+    --gray-500: 100 116 139;
+    --gray-600: 71 85 105;
+    --gray-700: 51 65 85;
+    --gray-800: 30 41 59;
+    --gray-900: 15 23 42;
+
+    /* surfaces */
+    --bg-app: var(--gray-50);
+    --bg-surface: 255 255 255;
+    --bg-subtle: var(--gray-100);
+    --border: var(--gray-200);
+    --border-strong: var(--gray-300);
+
+    /* text */
+    --text-primary: var(--gray-900);
+    --text-secondary: var(--gray-600);
+    --text-muted: var(--gray-500);
+    --text-inverse: 255 255 255;
+
+    /* brand — overwritten at runtime by BrandingProvider */
+    --color-primary: 37 99 235;
+    --color-primary-hover: 29 78 216;
+    --color-primary-subtle: 239 246 255;
+    --color-primary-fg: 255 255 255;
+    --color-secondary: 71 85 105;
+
+    /* semantic */
+    --success: 21 128 61;
+    --success-bg: 240 253 244;
+    --warning: 180 83 9;
+    --warning-bg: 255 251 235;
+    --danger: 185 28 28;
+    --danger-bg: 254 242 242;
+    --info: 29 78 216;
+    --info-bg: 239 246 255;
+  }
+
+  * { @apply border-line; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    @apply bg-app text-content font-sans text-base antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+  }
+
+  /* Money and quantity columns must align. */
+  .tabular, td.tabular, th.tabular { font-variant-numeric: tabular-nums; }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-surface;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-line-strong; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--gray-400)); }
+}
+
+@layer components {
+  .skeleton {
+    @apply relative overflow-hidden rounded bg-subtle;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
