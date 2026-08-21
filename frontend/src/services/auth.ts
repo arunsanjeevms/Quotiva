@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabaseClient';
 import type { UserProfile } from '@/types';
 
 /**
@@ -156,6 +157,114 @@ function createMockAuthProvider(): AuthProvider {
   };
 }
 
-export const authProvider: AuthProvider = createMockAuthProvider();
+/**
+ * Real provider backed by Supabase Auth. Implements the same interface as the
+ * mock above, so swapping between them is a one-line change with no consumer
+ * changes anywhere else in the app.
+ */
+function createSupabaseAuthProvider(): AuthProvider {
+  function toSession(session: import('@supabase/supabase-js').Session | null): AuthSession | null {
+    if (!session) return null;
+    const authUser = session.user;
+    return {
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      expiresAt: (session.expires_at ?? 0) * 1000,
+      user: {
+        id: authUser.id,
+        email: authUser.email ?? '',
+        fullName: (authUser.user_metadata?.['full_name'] as string | undefined) ?? null,
+        phone: authUser.phone ?? null,
+        avatarUrl: (authUser.user_metadata?.['avatar_url'] as string | undefined) ?? null,
+        lastLoginAt: authUser.last_sign_in_at ?? null,
+        isActive: true,
+        createdAt: authUser.created_at,
+      },
+    };
+  }
+
+  function client() {
+    if (!supabase) {
+      throw new Error(
+        'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, or enable mocks with VITE_ENABLE_MOCKS=true.',
+      );
+    }
+    return supabase;
+  }
+
+  return {
+    async getSession() {
+      const { data } = await client().auth.getSession();
+      currentToken = data.session?.access_token ?? null;
+      return toSession(data.session);
+    },
+    getAccessToken() {
+      // supabase-js keeps the current session in memory; callers that need a
+      // token synchronously (the API client) rely on this being populated by
+      // the time a request fires, which onAuthStateChange guarantees.
+      return currentToken;
+    },
+    onAuthStateChange(handler) {
+      const { data } = client().auth.onAuthStateChange((_event, session) => {
+        currentToken = session?.access_token ?? null;
+        handler(toSession(session));
+      });
+      return () => data.subscription.unsubscribe();
+    },
+    async signIn(email, password, remember) {
+      void remember; // supabase-js persists to localStorage by default; session-only login is a future refinement.
+      const { data, error } = await client().auth.signInWithPassword({ email, password });
+      if (error) throw new Error('Invalid email or password.');
+      const session = toSession(data.session);
+      if (!session) throw new Error('Invalid email or password.');
+      currentToken = data.session?.access_token ?? null;
+      return session;
+    },
+    async signOut() {
+      await client().auth.signOut();
+      currentToken = null;
+    },
+    async getProfile() {
+      const { data } = await client().auth.getUser();
+      if (!data.user) throw new Error('Not signed in.');
+      return toSession({ user: data.user } as import('@supabase/supabase-js').Session)!.user;
+    },
+    async updateProfile(patch) {
+      const { data, error } = await client().auth.updateUser({
+        data: { full_name: patch.fullName, avatar_url: patch.avatarUrl },
+        ...(patch.phone !== undefined ? { phone: patch.phone ?? undefined } : {}),
+      });
+      if (error) throw new Error(error.message);
+      return toSession({ user: data.user } as import('@supabase/supabase-js').Session)!.user;
+    },
+    async requestPasswordReset(email) {
+      // Errors are swallowed deliberately: the UI shows the same confirmation
+      // whether or not the address exists, so this can't be used to enumerate
+      // accounts (docs/08 §1).
+      await client().auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+    },
+    async resetPassword(_token, password) {
+      const { error } = await client().auth.updateUser({ password });
+      if (error) throw new Error(error.message);
+    },
+    async changePassword(currentPassword, next) {
+      const { data: sessionData } = await client().auth.getSession();
+      const email = sessionData.session?.user.email;
+      if (!email) throw new Error('Not signed in.');
+      const { error: reauthError } = await client().auth.signInWithPassword({ email, password: currentPassword });
+      if (reauthError) throw new Error('Your current password is incorrect.');
+      const { error } = await client().auth.updateUser({ password: next });
+      if (error) throw new Error(error.message);
+    },
+  };
+}
+
+let currentToken: string | null = null;
 
 export const MOCKS_ENABLED = import.meta.env.VITE_ENABLE_MOCKS !== 'false';
+
+export const authProvider: AuthProvider = MOCKS_ENABLED
+  ? createMockAuthProvider()
+  : createSupabaseAuthProvider();
