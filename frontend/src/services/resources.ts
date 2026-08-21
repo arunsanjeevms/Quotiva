@@ -91,6 +91,7 @@ export const quotationsService = {
   cancel: (id: string, reason: string) =>
     api.post<ApiItemResponse<Quotation>>(`/quotations/${id}/cancel`, { reason }).then((r) => r.data),
   preview: (id: string) => api.text(`/quotations/${id}/preview`),
+  pdf: (id: string) => api.blob(`/quotations/${id}/pdf`),
   whatsapp: (id: string) =>
     api
       .get<ApiItemResponse<{ url: string; message: string }>>(`/quotations/${id}/whatsapp`)
@@ -113,6 +114,7 @@ export const invoicesService = {
     api.post<ApiItemResponse<Invoice>>(`/invoices/${id}/void`, { reason }).then((r) => r.data),
   payments: (id: string) => api.get<ApiListResponse<Payment>>(`/invoices/${id}/payments`),
   preview: (id: string) => api.text(`/invoices/${id}/preview`),
+  pdf: (id: string) => api.blob(`/invoices/${id}/pdf`),
   whatsapp: (id: string) =>
     api
       .get<ApiItemResponse<{ url: string; message: string }>>(`/invoices/${id}/whatsapp`)
