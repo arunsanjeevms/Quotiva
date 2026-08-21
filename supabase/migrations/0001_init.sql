@@ -182,9 +182,9 @@ create table public.categories (
   is_active   boolean not null default true,
   archived_at timestamptz,
   created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  unique (business_id, lower(name))
+  updated_at  timestamptz not null default now()
 );
+create unique index uq_categories_business_name on public.categories (business_id, lower(name));
 create trigger trg_categories_updated_at before update on public.categories
   for each row execute function public.set_updated_at();
 
@@ -196,9 +196,9 @@ create table public.units (
   is_active    boolean not null default true,
   archived_at  timestamptz,
   created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  unique (business_id, lower(abbreviation))
+  updated_at   timestamptz not null default now()
 );
+create unique index uq_units_business_abbreviation on public.units (business_id, lower(abbreviation));
 create trigger trg_units_updated_at before update on public.units
   for each row execute function public.set_updated_at();
 
@@ -211,9 +211,9 @@ create table public.taxes (
   is_active   boolean not null default true,
   archived_at timestamptz,
   created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now(),
-  unique (business_id, lower(name))
+  updated_at  timestamptz not null default now()
 );
+create unique index uq_taxes_business_name on public.taxes (business_id, lower(name));
 create trigger trg_taxes_updated_at before update on public.taxes
   for each row execute function public.set_updated_at();
 
@@ -225,6 +225,14 @@ create table public.tax_components (
   rate        numeric(9,4) not null check (rate >= 0 and rate <= 100),
   sort_order  integer not null default 0
 );
+-- Follows the parent tax's permissions, same pattern as items/charges below.
+alter table public.tax_components enable row level security;
+alter table public.tax_components force row level security;
+create policy "tax_components_select" on public.tax_components for select to authenticated
+  using (public.is_business_member(business_id));
+create policy "tax_components_write" on public.tax_components for all to authenticated
+  using (public.has_permission(business_id, 'tax.update'))
+  with check (public.has_permission(business_id, 'tax.update'));
 
 create table public.products (
   id            uuid primary key default gen_random_uuid(),
@@ -245,9 +253,9 @@ create table public.products (
   stock_quantity  numeric(18,4) not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  created_by uuid references auth.users(id),
-  unique (business_id, lower(sku)) where sku is not null
+  created_by uuid references auth.users(id)
 );
+create unique index uq_products_business_sku on public.products (business_id, lower(sku)) where sku is not null;
 create index on public.products (business_id, kind, is_active);
 create index on public.products using gin (
   to_tsvector('simple', coalesce(name,'') || ' ' || coalesce(sku,'') || ' ' || coalesce(description,''))
@@ -277,9 +285,9 @@ create table public.customers (
   archived_at   timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  created_by uuid references auth.users(id),
-  unique (business_id, lower(code)) where code is not null
+  created_by uuid references auth.users(id)
 );
+create unique index uq_customers_business_code on public.customers (business_id, lower(code)) where code is not null;
 create index on public.customers (business_id, is_active);
 create index on public.customers using gin (
   to_tsvector('simple', coalesce(name,'') || ' ' || coalesce(company_name,'') ||
@@ -534,9 +542,9 @@ create table public.payment_methods (
   sort_order integer not null default 0,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (business_id, lower(name))
+  updated_at timestamptz not null default now()
 );
+create unique index uq_payment_methods_business_name on public.payment_methods (business_id, lower(name));
 create trigger trg_payment_methods_updated_at before update on public.payment_methods
   for each row execute function public.set_updated_at();
 
