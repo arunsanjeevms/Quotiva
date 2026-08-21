@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authorize } from '../middleware/resolveTenant.js';
 import { validate } from '../middleware/validate.js';
 import { invoicesService } from '../services/invoices.service.js';
+import { generateDocumentPdf } from '../services/pdf.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { AppError } from '../utils/AppError.js';
 import { logAudit } from '../utils/audit.js';
@@ -108,6 +109,14 @@ invoicesRouter.post('/:id/duplicate', authorize('invoice.create'), asyncHandler(
 invoicesRouter.get('/:id/payments', authorize('payment.read'), asyncHandler(async (req, res) => {
   const data = await invoicesService.listPayments(req.tenant!.businessId, req.params['id']!);
   res.json({ data, meta: { page: 1, pageSize: data.length, total: data.length, totalPages: 1 } });
+}));
+
+invoicesRouter.get('/:id/pdf', authorize('invoice.read'), asyncHandler(async (req, res) => {
+  const invoice = await invoicesService.get(req.tenant!.businessId, req.params['id']!);
+  const pdf = await generateDocumentPdf({ businessId: req.tenant!.businessId, doc: invoice as Record<string, unknown>, docTypeLabel: 'Invoice' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${(invoice as Record<string, unknown>)['invoiceNumber']}.pdf"`);
+  res.send(pdf);
 }));
 
 invoicesRouter.get('/:id/whatsapp', authorize('invoice.read'), asyncHandler(async (req, res) => {
