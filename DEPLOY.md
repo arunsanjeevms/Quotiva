@@ -117,13 +117,21 @@ templates — all ordinary, editable rows, per `docs/03-database-schema.md`
 This backend implements: auth, multi-tenant bootstrap + RLS, customers,
 catalog (products/services/categories/units/taxes), quotations, invoices
 (with conversion), payments (with server-derived status), dashboard, six
-reports, business/branding/currency/numbering settings, and global search —
-all with server-recalculated totals and race-safe document numbering.
+reports, business/branding/currency/numbering settings, PDF generation
+(server-side Puppeteer, mirrors the on-screen preview's 9 templates), and
+global search — all with server-recalculated totals and race-safe document
+numbering.
 
 **Not yet wired** (return an honest "not implemented" rather than fake data):
-PDF generation, email sending, recurring invoice generation, reminders,
-custom fields, and real backup export. These are scoped for a later phase —
-see `docs/10-roadmap.md` Phase 12 — and the UI says so rather than pretending.
+email sending, recurring invoice generation, reminders, custom fields, and
+real backup export. These are scoped for a later phase — see
+`docs/10-roadmap.md` Phase 12 — and the UI says so rather than pretending.
+
+> PDF generation launches a headless Chromium (Puppeteer) inside the
+> `quotiva-api` process. `npm install` downloads it automatically during
+> Render's build — no extra config needed on the free-tier Node runtime. The
+> first PDF request after a cold start is slower (browser launch); after that
+> the browser instance is reused.
 
 ## Local development against the real backend
 
