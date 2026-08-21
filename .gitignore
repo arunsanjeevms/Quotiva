@@ -38,3 +38,6 @@ supabase/.branches/
 # generated artifacts
 *.pdf.tmp
 /tmp/
+
+# backend build output
+backend/dist/
