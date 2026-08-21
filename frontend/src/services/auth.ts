@@ -263,7 +263,18 @@ function createSupabaseAuthProvider(): AuthProvider {
 
 let currentToken: string | null = null;
 
-export const MOCKS_ENABLED = import.meta.env.VITE_ENABLE_MOCKS !== 'false';
+/**
+ * Mocks are opt-in, not opt-out: only the exact string "true" enables them.
+ *
+ * This deliberately fails *safe*. The previous `!== 'false'` test meant a
+ * missing, blank or misspelled value silently enabled the mock auth provider,
+ * which issues fake `mock.<uuid>` access tokens. Any request that then reached
+ * the real backend was rejected with `bad_jwt` and logged the user straight
+ * out — with every other call faked locally, the app looked fine right up
+ * until one unmocked endpoint leaked. Defaulting to the real backend makes a
+ * misconfiguration an obvious connection error instead of a silent demo mode.
+ */
+export const MOCKS_ENABLED = import.meta.env.VITE_ENABLE_MOCKS === 'true';
 
 export const authProvider: AuthProvider = MOCKS_ENABLED
   ? createMockAuthProvider()
