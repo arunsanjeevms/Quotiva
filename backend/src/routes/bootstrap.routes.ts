@@ -38,8 +38,12 @@ bootstrapRouter.get('/', asyncHandler(async (req, res) => {
     // so the app is usable immediately; they rename it from Settings.
     const { data: newId, error: bootstrapError } = await supabaseAdmin.rpc('create_business_bootstrap', {
       p_name: `${(req.user!.email || 'My Business').split('@')[0]}'s Business`,
+      p_user_id: userId,
     });
-    if (bootstrapError || !newId) throw new AppError(500, 'INTERNAL_ERROR', 'Could not create your business.');
+    if (bootstrapError || !newId) {
+      console.error('[bootstrap] create_business_bootstrap failed', bootstrapError);
+      throw new AppError(500, 'INTERNAL_ERROR', 'Could not create your business.');
+    }
     businessId = newId as string;
   }
 
