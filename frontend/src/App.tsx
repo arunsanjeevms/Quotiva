@@ -28,7 +28,10 @@ export function App(): React.ReactElement {
       <TooltipProvider delayDuration={300}>
         <ToastProvider>
           <ConfirmProvider>
-            <BrowserRouter>
+            {/* import.meta.env.BASE_URL mirrors vite.config.ts's `base`, so the
+                router's basename automatically matches whatever path this is
+                served from (root locally, /Quotiva/ on GitHub Pages). */}
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
               <SessionProvider>
                 <AppRoutes />
               </SessionProvider>
