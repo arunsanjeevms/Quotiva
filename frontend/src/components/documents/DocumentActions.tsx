@@ -41,6 +41,20 @@ export function DocumentActions({
   const number = invoice ? invoice.invoiceNumber : (doc as Quotation).quotationNumber;
   const canEdit = invoice ? invoice.status === 'draft' : (doc as Quotation).status === 'draft';
 
+  const pdf = useAppMutation<Blob, void>({
+    mutationFn: () => (invoice ? invoicesService.pdf(invoice.id) : quotationsService.pdf(doc.id)),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    },
+  });
+
   const whatsapp = useAppMutation<{ url: string; message: string }, void>({
     mutationFn: () =>
       invoice ? invoicesService.whatsapp(invoice.id) : quotationsService.whatsapp(doc.id),
@@ -65,13 +79,7 @@ export function DocumentActions({
 
   return (
     <>
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() =>
-          toast.info('PDF generation requires the backend', 'Connect the API to download a real PDF.')
-        }
-      >
+      <Button variant="secondary" size="sm" loading={pdf.isPending} onClick={() => pdf.mutate()}>
         <Download className="h-3.5 w-3.5" />
         PDF
       </Button>
