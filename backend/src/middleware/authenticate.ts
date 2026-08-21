@@ -15,6 +15,11 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
 
     const { data, error } = await supabaseAuth.auth.getUser(token);
     if (error || !data.user) {
+      console.error('[auth] token verification failed', {
+        message: error?.message,
+        status: error?.status,
+        code: error?.code,
+      });
       throw new AppError(401, 'UNAUTHENTICATED', 'Your session has expired. Please sign in again.');
     }
 
