@@ -1,0 +1,39 @@
+## Render Blueprint — deploys the Quotiva backend as a free-tier Web Service.
+## docs/09-operations.md §4. Push this file to the repo root, then in Render:
+## New → Blueprint → select this repo. Render reads this file automatically.
+##
+## The frontend is a static site and is NOT deployed by this blueprint —
+## deploy it separately (Vercel/Netlify/Render Static Site/Cloudflare Pages),
+## pointing VITE_API_BASE_URL at this service's URL.
+
+services:
+  - type: web
+    name: quotiva-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Set to your deployed frontend origin(s), comma-separated, no trailing slash.
+      - key: APP_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX
+        value: 300
+      - key: LOG_LEVEL
+        value: info
