@@ -1,10 +1,16 @@
-## Render Blueprint — deploys the Quotiva backend as a free-tier Web Service.
-## docs/09-operations.md §4. Push this file to the repo root, then in Render:
-## New → Blueprint → select this repo. Render reads this file automatically.
+## Render Blueprint — deploys both the Quotiva backend (Express) and frontend
+## (static Vite build) as free-tier services in one project.
+## docs/09-operations.md §4 / DEPLOY.md. Push this file to the repo root, then
+## in Render: New → Blueprint → select this repo. Render reads this file
+## automatically and creates both services below.
 ##
-## The frontend is a static site and is NOT deployed by this blueprint —
-## deploy it separately (Vercel/Netlify/Render Static Site/Cloudflare Pages),
-## pointing VITE_API_BASE_URL at this service's URL.
+## After the first deploy, Render assigns each service a *.onrender.com URL.
+## Two values below can only be filled in once you have those URLs — set them
+## in the Render dashboard on each service (Environment tab), not here:
+##   - quotiva-api      → APP_ORIGIN         = the frontend's URL (no trailing slash)
+##   - quotiva-frontend → VITE_API_BASE_URL  = the backend's URL + "/api"
+## Every var marked `sync: false` below is one you set by hand in the
+## dashboard — Supabase keys and these two cross-service URLs.
 
 services:
   - type: web
@@ -22,7 +28,7 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # Set to your deployed frontend origin(s), comma-separated, no trailing slash.
+      # The frontend's Render URL once it exists, e.g. https://quotiva-frontend.onrender.com
       - key: APP_ORIGIN
         sync: false
       - key: SUPABASE_URL
@@ -37,3 +43,32 @@ services:
         value: 300
       - key: LOG_LEVEL
         value: info
+
+  - type: web
+    name: quotiva-frontend
+    runtime: static
+    plan: free
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: commit
+    # Client-side routing (React Router) — every path serves index.html and
+    # the router takes over from there.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # The backend's Render URL once it exists, e.g. https://quotiva-api.onrender.com/api
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      # Leave "true" to run as a self-contained MSW-backed demo before the
+      # backend/Supabase values above are filled in; set to "false" once they
+      # are, so the app talks to the real API and real Supabase Auth.
+      - key: VITE_ENABLE_MOCKS
+        value: 'true'

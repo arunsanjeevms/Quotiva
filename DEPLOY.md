@@ -1,7 +1,8 @@
 # Deploying Quotiva (Supabase + Render, free tier)
 
 This is the fastest path from a fresh clone to a working, hosted app: database
-on Supabase, API on Render, frontend on any static host. Follow in order.
+on Supabase, **both the API and the frontend on Render** as two free-tier
+services in one project. Follow in order.
 
 ## 1. Supabase project
 
@@ -31,64 +32,67 @@ on Supabase, API on Render, frontend on any static host. Follow in order.
    the SQL editor to confirm RLS is actually enforcing isolation before you
    put real data in.
 6. **Authentication → URL Configuration** — set the Site URL to your deployed
-   frontend URL once you have one (step 3 below), and add
+   frontend URL once you have one (step 2 below), and add
    `<frontend-url>/reset-password` as a redirect URL.
 
-## 2. Backend on Render (free tier)
+## 2. Deploy both services with the Blueprint (recommended)
 
-**Option A — Blueprint (recommended).** Push this repo (including
-`render.yaml`) to GitHub, then in Render: **New → Blueprint**, pick the repo.
-Render reads `render.yaml` and creates the `quotiva-api` web service pointed
-at `backend/`.
+Push this repo (including `render.yaml`) to GitHub, then in Render:
+**New → Blueprint** → pick the repo. Render reads `render.yaml` and creates
+**both** services in one go:
 
-**Option B — manual.** New → Web Service → connect the repo:
+- **`quotiva-api`** — Express backend, root `backend/`
+- **`quotiva-frontend`** — static Vite build, root `frontend/`, with a
+  catch-all rewrite to `index.html` so React Router's client-side routes
+  (e.g. `/invoices/123`) work on a hard refresh, not just 404s.
 
-| Setting | Value |
-|---|---|
-| Root directory | `backend` |
-| Build command | `npm install && npm run build` |
-| Start command | `npm run start` |
-| Health check path | `/api/health` |
+Render will prompt you to fill in every variable marked `sync: false` in
+`render.yaml` before the first deploy — leave the two cross-service URL
+fields (`APP_ORIGIN`, `VITE_API_BASE_URL`) blank for now, deploy, then come
+back once both services have URLs:
 
-Either way, set these environment variables on the service (Render dashboard
-→ your service → **Environment**):
+1. **`quotiva-api` → Environment**:
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` — from step 1.2
+   - `APP_ORIGIN` — the `quotiva-frontend` service's URL, e.g.
+     `https://quotiva-frontend.onrender.com` (no trailing slash)
+2. **`quotiva-frontend` → Environment**:
+   - `VITE_SUPABASE_URL` — same value as `SUPABASE_URL` above
+   - `VITE_SUPABASE_PUBLISHABLE_KEY` — the **anon** key, never the service-role key
+   - `VITE_API_BASE_URL` — the `quotiva-api` service's URL + `/api`, e.g.
+     `https://quotiva-api.onrender.com/api`
+   - `VITE_ENABLE_MOCKS` — set to `false` once the three values above are in,
+     so the app switches from the MSW demo to your real backend and Supabase Auth
 
-| Variable | Value |
-|---|---|
-| `APP_ORIGIN` | your frontend's URL, e.g. `https://quotiva.vercel.app` (comma-separate if more than one) |
-| `SUPABASE_URL` | from step 1.2 |
-| `SUPABASE_SERVICE_ROLE_KEY` | from step 1.2 — **secret** |
-| `SUPABASE_ANON_KEY` | from step 1.2 |
+Saving an environment variable triggers a redeploy of that service
+automatically. Once both are live:
+- `https://quotiva-api.onrender.com/api/health` → `{"status":"ok",...}`
+- `https://quotiva-frontend.onrender.com` → the app (still in demo/mock mode
+  until you flip `VITE_ENABLE_MOCKS`)
 
-Deploy. Once live, `https://quotiva-api.onrender.com/api/health` should
-return `{"status":"ok",...}`.
+Then go back to Supabase **Authentication → URL Configuration** and set the
+Site URL to the frontend's URL, plus `<frontend-url>/reset-password` as a
+redirect URL.
 
 > Free-tier Render web services spin down after 15 minutes idle and take
-> ~30–60s to wake on the next request. Fine for a demo; for anything real,
-> upgrade the plan or add an uptime pinger.
+> ~30–60s to wake on the next request. The static frontend doesn't spin
+> down, but its first API call after a backend cold-start will be slow.
+> Fine for a demo; for anything real, upgrade the API service's plan or add
+> an uptime pinger.
 
-## 3. Frontend
+### Manual setup (if you'd rather not use the Blueprint)
 
-Any static host works (Vercel, Netlify, Render Static Site, Cloudflare
-Pages). Build settings:
+Two separate services, same repo:
 
-| Setting | Value |
-|---|---|
-| Root directory | `frontend` |
-| Build command | `npm install && npm run build` |
-| Publish directory | `frontend/dist` |
+| | `quotiva-api` | `quotiva-frontend` |
+|---|---|---|
+| Type | Web Service | Static Site |
+| Root directory | `backend` | `frontend` |
+| Build command | `npm install && npm run build` | `npm install && npm run build` |
+| Start / publish | `npm run start` | Publish directory: `dist` |
+| Health check | `/api/health` | — |
+| Rewrite rule | — | `/*` → `/index.html` |
 
-Environment variables (all public — these are safe to expose):
-
-| Variable | Value |
-|---|---|
-| `VITE_API_BASE_URL` | `https://quotiva-api.onrender.com/api` (your Render URL + `/api`) |
-| `VITE_SUPABASE_URL` | same as `SUPABASE_URL` above |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | the **anon** key, never the service-role key |
-| `VITE_ENABLE_MOCKS` | `false` — this switches off the MSW mock API and the demo auth provider, so the app talks to your real backend and Supabase Auth |
-
-Deploy, then go back to Supabase **Authentication → URL Configuration** and
-set the Site URL to this frontend's actual URL if you hadn't yet.
+Environment variables are the same as listed above.
 
 ## 4. Create your first account
 
