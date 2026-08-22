@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FilePlus2, FileText, Pencil, Receipt, Wallet } from 'lucide-react';
-import { PageHeader, DescriptionList } from '@/components/ui/PageHeader';
+import { PageHeader, DescriptionList, Toolbar } from '@/components/ui/PageHeader';
+import { DateRangePicker, type DateRangeValue } from '@/components/ui/DatePicker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge, InvoiceStatusBadge, PaymentStatusBadge, QuotationStatusBadge } from '@/components/ui/Badge';
@@ -11,11 +13,90 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { DetailSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Timeline, type TimelineEntry } from '@/components/ui/Timeline';
-import { useCustomer } from '@/hooks/queries';
+import { useCustomer, useCustomerStatement } from '@/hooks/queries';
 import { customersService } from '@/services/resources';
 import { useBusiness, useCurrency, usePermission } from '@/stores/BusinessContext';
+import { resolveDateRange } from '@/lib/dateRange';
 import { formatDate, formatMoney, humanize } from '@/lib/format';
-import type { Invoice, Payment, Quotation } from '@/types';
+import type { Invoice, Payment, Quotation, StatementEntry } from '@/types';
+
+/**
+ * Account statement: every issued invoice as a debit and every non-voided
+ * payment as a credit, in date order with a running balance. The opening
+ * balance nets everything before the selected range, so a period statement
+ * still reconciles to the customer's true outstanding position.
+ */
+function StatementTab({ customerId }: { customerId: string }): React.ReactElement {
+  const currency = useCurrency();
+  const { business } = useBusiness();
+  const [range, setRange] = useState<DateRangeValue>({ preset: 'this_year' });
+
+  const resolved = resolveDateRange(range);
+  const { data, isLoading, error, refetch } = useCustomerStatement(customerId, resolved);
+
+  const columns: Column<StatementEntry>[] = [
+    {
+      key: 'date', header: 'Date', cardTitle: true,
+      cell: (row) => formatDate(row.date, business.dateFormat),
+    },
+    {
+      key: 'type', header: 'Type',
+      cell: (row) => (
+        <Badge tone={row.type === 'payment' ? 'success' : 'neutral'}>{humanize(row.type)}</Badge>
+      ),
+    },
+    { key: 'reference', header: 'Reference', cell: (row) => row.reference || '—' },
+    { key: 'description', header: 'Description', hideBelow: 'lg', cell: (row) => row.description },
+    {
+      key: 'debit', header: 'Debit', align: 'right', numeric: true,
+      cell: (row) => (row.debit ? formatMoney(row.debit, currency) : '—'),
+    },
+    {
+      key: 'credit', header: 'Credit', align: 'right', numeric: true,
+      cell: (row) => (row.credit ? formatMoney(row.credit, currency) : '—'),
+    },
+    {
+      key: 'balance', header: 'Balance', align: 'right', numeric: true,
+      cell: (row) => <span className="font-medium text-content">{formatMoney(row.balance, currency)}</span>,
+    },
+  ];
+
+  return (
+    <>
+      <Toolbar>
+        <DateRangePicker value={range} onChange={setRange} />
+      </Toolbar>
+
+      <SummaryStrip
+        className="mb-4"
+        items={[
+          { label: 'Opening balance', value: formatMoney(data?.openingBalance ?? '0', currency) },
+          {
+            label: 'Closing balance',
+            value: formatMoney(data?.closingBalance ?? '0', currency),
+            tone: Number(data?.closingBalance ?? 0) > 0 ? 'warning' : 'success',
+          },
+        ]}
+      />
+
+      <DataTable
+        columns={columns}
+        rows={data?.entries}
+        rowKey={(row) => row.id}
+        loading={isLoading}
+        error={error}
+        onRetry={() => void refetch()}
+        empty={
+          <EmptyState
+            icon={FileText}
+            title="No activity in this period"
+            description="Issued invoices and recorded payments will appear here."
+          />
+        }
+      />
+    </>
+  );
+}
 
 export function CustomerDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -180,6 +261,7 @@ export function CustomerDetailPage(): React.ReactElement {
           <TabsTrigger value="quotations">Quotations ({stats?.quotationCount ?? 0})</TabsTrigger>
           <TabsTrigger value="invoices">Invoices ({stats?.invoiceCount ?? 0})</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="statement">Statement</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
@@ -304,6 +386,10 @@ export function CustomerDetailPage(): React.ReactElement {
               />
             }
           />
+        </TabsContent>
+
+        <TabsContent value="statement">
+          <StatementTab customerId={customer.id} />
         </TabsContent>
 
         <TabsContent value="activity">
