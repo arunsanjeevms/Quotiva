@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authorize } from '../middleware/resolveTenant.js';
@@ -6,7 +7,9 @@ import { validate } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { AppError } from '../utils/AppError.js';
 import { bodyToSnake, rowToCamel, rowsToCamel } from '../utils/case.js';
-import { getBranding, getBusiness, getSettings, updateBranding, updateBusiness, updateSettings } from '../services/settings.service.js';
+import { getBranding, getBusiness, getSettings, updateBranding, updateBusiness, updateSettings, uploadBrandingAsset } from '../services/settings.service.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 
 export const settingsRouter = Router();
 
@@ -30,6 +33,18 @@ settingsRouter.get('/branding', authorize('settings.read'), asyncHandler(async (
 settingsRouter.put('/branding', authorize('settings.update'), asyncHandler(async (req, res) => {
   res.json({ data: await updateBranding(req.tenant!.businessId, req.body) });
 }));
+
+for (const kind of ['logo', 'favicon'] as const) {
+  settingsRouter.post(
+    `/branding/${kind}`,
+    authorize('settings.update'),
+    upload.single('file'),
+    asyncHandler(async (req, res) => {
+      if (!req.file) throw AppError.validation([{ path: 'file', message: 'No file uploaded' }]);
+      res.json({ data: await uploadBrandingAsset(req.tenant!.businessId, kind, req.file) });
+    }),
+  );
+}
 
 /* ------------------------------- Numbering -------------------------------- */
 
