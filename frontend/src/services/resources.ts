@@ -90,7 +90,6 @@ export const quotationsService = {
     api.post<ApiItemResponse<Quotation>>(`/quotations/${id}/duplicate`).then((r) => r.data),
   cancel: (id: string, reason: string) =>
     api.post<ApiItemResponse<Quotation>>(`/quotations/${id}/cancel`, { reason }).then((r) => r.data),
-  preview: (id: string) => api.text(`/quotations/${id}/preview`),
   pdf: (id: string) => api.blob(`/quotations/${id}/pdf`),
   whatsapp: (id: string) =>
     api
@@ -113,7 +112,6 @@ export const invoicesService = {
   void: (id: string, reason: string) =>
     api.post<ApiItemResponse<Invoice>>(`/invoices/${id}/void`, { reason }).then((r) => r.data),
   payments: (id: string) => api.get<ApiListResponse<Payment>>(`/invoices/${id}/payments`),
-  preview: (id: string) => api.text(`/invoices/${id}/preview`),
   pdf: (id: string) => api.blob(`/invoices/${id}/pdf`),
   whatsapp: (id: string) =>
     api
@@ -165,7 +163,7 @@ export const settingsService = {
     form.append('file', file);
     return api.post<ApiItemResponse<unknown>>(`/settings/branding/${kind}`, form).then((r) => r.data);
   },
-  templates: () => api.get<ApiListResponse<DocumentTemplate>>('/templates'),
+  templates: () => api.get<ApiListResponse<DocumentTemplate>>('/settings/templates'),
   members: () => api.get<ApiListResponse<Member>>('/members'),
   roles: () => api.get<ApiListResponse<Role>>('/roles'),
   auditLogs: (params?: ListParams) => api.get<ApiListResponse<AuditLog>>('/audit-logs', params),
