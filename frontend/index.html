@@ -8,22 +8,6 @@
     <title>Quotiva</title>
   </head>
   <body>
-    <!--
-      Pairs with public/404.html: restores the real path GitHub Pages'
-      redirect encoded into ?p=..., before the router or React ever sees the
-      URL. A no-op on every other host, where this query param never appears.
-    -->
-    <script>
-      (function (l) {
-        if (l.search[1] === 'p' && l.search[2] === '=') {
-          var decoded = l.search.slice(3).split('&').map(function (s) { return s.replace(/~and~/g, '&'); });
-          window.history.replaceState(
-            null, '',
-            l.pathname.slice(0, -1) + decoded[0] + (window.location.hash || '')
-          );
-        }
-      })(window.location);
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
