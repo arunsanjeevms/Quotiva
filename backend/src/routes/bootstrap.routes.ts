@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../utils/AppError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { rowToCamel } from '../utils/case.js';
+import { attachSignedUrls } from '../services/settings.service.js';
 
 interface MembershipRow {
   business_id: string;
@@ -62,7 +63,7 @@ bootstrapRouter.get('/', asyncHandler(async (req, res) => {
     data: {
       business: rowToCamel(business),
       settings: rowToCamel(settings),
-      branding: rowToCamel(branding),
+      branding: await attachSignedUrls(rowToCamel(branding)),
       role: { id: role.id, key: role.key, name: role.name, isSystem: true, description: null, permissions: role.permissions },
       memberships: (allMemberships ?? []).map((m) => {
         const b = m['businesses'] as unknown as { id: string; name: string } | null;
