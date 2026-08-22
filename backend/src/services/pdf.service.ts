@@ -1,9 +1,46 @@
+import { existsSync } from 'node:fs';
 import puppeteer, { type Browser } from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { AppError } from '../utils/AppError.js';
 import { supabaseAdmin } from '../config/supabase.js';
+import { env } from '../config/env.js';
 import { getBranding, getBusiness, getSettings } from './settings.service.js';
 import { renderDocumentHtml, type PdfDocument } from './pdfHtml.service.js';
+
+/**
+ * @sparticuz/chromium ships a Linux-only binary — correct for Render, but it
+ * cannot launch on a developer's Windows/macOS machine at all (not slow, not
+ * flaky: a wrong-platform executable, so every local PDF request failed
+ * immediately). Outside production, use whichever Chrome/Edge is already
+ * installed instead.
+ */
+function findLocalChrome(): string | null {
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+          'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+        ]
+      : process.platform === 'darwin'
+        ? [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+            '/Applications/Chromium.app/Contents/MacOS/Chromium',
+          ]
+        : ['/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/usr/bin/chromium'];
+  return candidates.find((p) => existsSync(p)) ?? null;
+}
+
+async function resolveExecutablePath(): Promise<string> {
+  if (env.NODE_ENV === 'production') return chromium.executablePath();
+  const local = findLocalChrome();
+  if (local) return local;
+  throw new Error(
+    'No local Chrome/Edge install found for PDF rendering in development. Install Google Chrome or Microsoft Edge, or set NODE_ENV=production to use the bundled Linux Chromium (only works on Linux).',
+  );
+}
 
 let browserPromise: Promise<Browser> | null = null;
 
@@ -33,13 +70,14 @@ async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = (async () => {
       log('resolving chromium executablePath');
-      const executablePath = await withTimeout(chromium.executablePath(), 15_000, 'chromium.executablePath() timed out');
+      const executablePath = await withTimeout(resolveExecutablePath(), 15_000, 'resolving the Chrome executable path timed out');
       log('executablePath resolved', { executablePath });
+      const args = env.NODE_ENV === 'production' ? chromium.args : [];
       const browser = await withTimeout(
         puppeteer.launch({
           executablePath,
           headless: true,
-          args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+          args: [...args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
         }),
         20_000,
         'Browser launch timed out',
