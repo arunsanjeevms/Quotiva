@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authorize } from '../middleware/resolveTenant.js';
 import { validate } from '../middleware/validate.js';
 import { customersRepository } from '../repositories/customers.repository.js';
+import { buildCustomerStatement } from '../services/statement.service.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { logAudit } from '../utils/audit.js';
 
@@ -79,4 +80,13 @@ customersRouter.get('/:id/payments', authorize('customer.read'), asyncHandler(as
 
 customersRouter.get('/:id/activity', authorize('customer.read'), asyncHandler(async (req, res) => {
   res.json(await customersRepository.activity(req.tenant!.businessId, req.params['id']!));
+}));
+
+customersRouter.get('/:id/statement', authorize('customer.read'), asyncHandler(async (req, res) => {
+  const q = req.query as Record<string, string | undefined>;
+  const data = await buildCustomerStatement(req.tenant!.businessId, req.params['id']!, {
+    ...(q['from'] ? { from: q['from'] } : {}),
+    ...(q['to'] ? { to: q['to'] } : {}),
+  });
+  res.json({ data });
 }));
