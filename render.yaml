@@ -1,16 +1,24 @@
-## Render Blueprint — deploys both the Quotiva backend (Express) and frontend
-## (static Vite build) as free-tier services in one project.
+## Render Blueprint — deploys the Quotiva backend (Express) and frontend
+## (static Vite build) as two free-tier services in one project.
 ## docs/09-operations.md §4 / DEPLOY.md. Push this file to the repo root, then
-## in Render: New → Blueprint → select this repo. Render reads this file
-## automatically and creates both services below.
+## in Render: New → Blueprint → select this repo.
+##
+## Both services install from the REPO ROOT rather than setting rootDir to
+## their own folder. This is an npm-workspaces monorepo with a single
+## package-lock.json at the root: running `npm install` inside backend/ or
+## frontend/ makes npm hoist a partial, lockfile-less tree to the repo root,
+## which silently omits the other workspace's packages and can fail outright
+## on a cross-workspace binary conflict. `npm ci` at the root installs every
+## workspace deterministically from the committed lockfile; each service then
+## builds only its own workspace.
 ##
 ## After the first deploy, Render assigns each service a *.onrender.com URL.
-## Two values below can only be filled in once you have those URLs — set them
-## in the Render dashboard on each service (Environment tab), not here:
+## Two values can only be filled in once you have those URLs — set them in the
+## Render dashboard on each service (Environment tab), not here:
 ##   - quotiva-api      → APP_ORIGIN         = the frontend's URL (no trailing slash)
 ##   - quotiva-frontend → VITE_API_BASE_URL  = the backend's URL + "/api"
-## Every var marked `sync: false` below is one you set by hand in the
-## dashboard — Supabase keys and these two cross-service URLs.
+## Every var marked `sync: false` is one you set by hand in the dashboard —
+## the Supabase keys and these two cross-service URLs.
 
 services:
   - type: web
@@ -18,9 +26,8 @@ services:
     runtime: node
     plan: free
     region: oregon
-    rootDir: backend
-    buildCommand: npm install && npm run build
-    startCommand: npm run start
+    buildCommand: npm ci && npm run build --workspace backend
+    startCommand: npm run start --workspace backend
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
@@ -33,6 +40,7 @@ services:
         sync: false
       - key: SUPABASE_URL
         sync: false
+      # Secret — service-role key. Backend only; never exposed to the browser.
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_ANON_KEY
@@ -47,9 +55,8 @@ services:
   - type: web
     name: quotiva-frontend
     runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
+    buildCommand: npm ci && npm run build --workspace frontend
+    staticPublishPath: frontend/dist
     autoDeployTrigger: commit
     # Client-side routing (React Router) — every path serves index.html and
     # the router takes over from there.
@@ -63,13 +70,14 @@ services:
         sync: false
       - key: VITE_SUPABASE_URL
         sync: false
+      # The publishable/anon key only. Vite inlines every VITE_* var into the
+      # bundle, so a service-role key here would be public — never put one here.
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         sync: false
-      # "true" runs the app as a self-contained MSW-backed demo with fake auth;
-      # "false" talks to the real API and real Supabase Auth. Now that
-      # quotiva-api is deployed, this must stay "false".
+      # "true" runs the app as a self-contained MSW demo with fake auth;
+      # "false" talks to the real API and real Supabase Auth.
       #
-      # NOTE: this is declared with a literal `value:`, which makes it
+      # NOTE: declared with a literal `value:`, which makes it
       # blueprint-managed — Render resets it to whatever is written here on
       # every blueprint sync, overwriting any dashboard edit. Change it here,
       # not in the dashboard.
