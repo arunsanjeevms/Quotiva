@@ -160,6 +160,11 @@ export const settingsService = {
   updateBusiness: (body: unknown) => api.put<ApiItemResponse<unknown>>('/settings/business', body),
   updateSettings: (body: unknown) => api.put<ApiItemResponse<unknown>>('/settings', body),
   updateBranding: (body: unknown) => api.put<ApiItemResponse<unknown>>('/settings/branding', body),
+  uploadBrandingAsset: (kind: 'logo' | 'favicon', file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post<ApiItemResponse<unknown>>(`/settings/branding/${kind}`, form).then((r) => r.data);
+  },
   templates: () => api.get<ApiListResponse<DocumentTemplate>>('/templates'),
   members: () => api.get<ApiListResponse<Member>>('/members'),
   roles: () => api.get<ApiListResponse<Role>>('/roles'),
