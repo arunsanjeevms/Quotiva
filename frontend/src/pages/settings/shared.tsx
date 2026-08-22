@@ -72,7 +72,16 @@ export function SettingsPanel({
   );
 }
 
-/** Local draft state that resets whenever the server value changes. */
+/**
+ * Local draft state that resets whenever the server value changes.
+ *
+ * The re-sync is keyed on the serialized *value*, not the object identity.
+ * Every caller builds `source` as an object literal, so it is a new reference
+ * on each render; depending on the reference re-ran this effect after every
+ * render and immediately overwrote the user's edit with the server value. The
+ * visible symptom was that no settings field could be changed at all — input
+ * snapped back and the Save bar never appeared, because `dirty` was never true.
+ */
 export function useDraft<T>(source: T): {
   draft: T;
   setDraft: (next: T | ((prev: T) => T)) => void;
@@ -81,11 +90,13 @@ export function useDraft<T>(source: T): {
 } {
   const [draft, setDraft] = useState<T>(source);
   const [baseline, setBaseline] = useState<T>(source);
+  const serializedSource = JSON.stringify(source);
 
   useEffect(() => {
-    setDraft(source);
-    setBaseline(source);
-  }, [source]);
+    const next = JSON.parse(serializedSource) as T;
+    setDraft(next);
+    setBaseline(next);
+  }, [serializedSource]);
 
   return {
     draft,
