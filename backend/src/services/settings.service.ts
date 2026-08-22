@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { AppError } from '../utils/AppError.js';
 import { bodyToSnake, rowToCamel } from '../utils/case.js';
@@ -30,11 +31,75 @@ export async function getSettings(businessId: string): Promise<BusinessSettings>
   return rowToCamel<BusinessSettings>(data);
 }
 
+/**
+ * The `business-assets` bucket is private (docs/04 "storage buckets") — the
+ * browser never gets a storage token, so every logo/favicon URL sent to the
+ * frontend is a short-lived signed URL generated here, never the raw path.
+ */
+const ASSET_BUCKET = 'business-assets';
+const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days — refreshed on every branding fetch
+
+async function signedAssetUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data, error } = await supabaseAdmin.storage.from(ASSET_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error || !data) return null;
+  return data.signedUrl;
+}
+
+export async function attachSignedUrls(branding: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const [logoUrl, faviconUrl] = await Promise.all([
+    signedAssetUrl(branding['logoPath'] as string | null),
+    signedAssetUrl(branding['faviconPath'] as string | null),
+  ]);
+  return { ...branding, logoUrl, faviconUrl };
+}
+
 export async function getBranding(businessId: string) {
   const { data, error } = await supabaseAdmin.from('business_branding').select('*').eq('business_id', businessId).maybeSingle();
   if (error) throw new AppError(500, 'INTERNAL_ERROR', error.message);
   if (!data) throw AppError.notFound('Branding');
-  return rowToCamel(data);
+  return attachSignedUrls(rowToCamel(data));
+}
+
+const ASSET_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/x-icon': 'ico',
+};
+
+/** Uploads a logo/favicon to storage, updates the business_branding row, and returns it with a fresh signed URL. */
+export async function uploadBrandingAsset(
+  businessId: string,
+  kind: 'logo' | 'favicon',
+  file: { buffer: Buffer; mimetype: string },
+): Promise<Record<string, unknown>> {
+  const ext = ASSET_EXT[file.mimetype];
+  if (!ext) throw new AppError(422, 'VALIDATION_ERROR', 'Unsupported file type. Use PNG, JPEG, WebP, SVG or ICO.');
+
+  const { data: existing } = await supabaseAdmin.from('business_branding').select('logo_path, favicon_path').eq('business_id', businessId).maybeSingle();
+  const column = kind === 'logo' ? 'logo_path' : 'favicon_path';
+  const previousPath = existing?.[column] as string | null | undefined;
+
+  const path = `${businessId}/branding/${kind}-${crypto.randomUUID()}.${ext}`;
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(ASSET_BUCKET)
+    .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+  if (uploadError) throw new AppError(500, 'INTERNAL_ERROR', `Could not upload ${kind}: ${uploadError.message}`);
+
+  const { data, error } = await supabaseAdmin
+    .from('business_branding')
+    .update({ [column]: path })
+    .eq('business_id', businessId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw new AppError(500, 'INTERNAL_ERROR', error.message);
+  if (!data) throw AppError.notFound('Branding');
+
+  if (previousPath) void supabaseAdmin.storage.from(ASSET_BUCKET).remove([previousPath]);
+
+  return attachSignedUrls(rowToCamel(data));
 }
 
 export async function getBusiness(businessId: string) {
@@ -74,7 +139,7 @@ export async function updateBranding(businessId: string, body: Record<string, un
   const { data, error } = await supabaseAdmin.from('business_branding').update(payload).eq('business_id', businessId).select('*').maybeSingle();
   if (error) throw new AppError(500, 'INTERNAL_ERROR', error.message);
   if (!data) throw AppError.notFound('Branding');
-  return rowToCamel(data);
+  return attachSignedUrls(rowToCamel(data));
 }
 
 const BUSINESS_COLUMNS = new Set([
