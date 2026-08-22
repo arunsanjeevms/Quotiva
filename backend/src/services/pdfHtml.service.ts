@@ -344,10 +344,7 @@ export function renderDocumentHtml(params: {
     ${paymentSection}
     ${notesTerms}
 
-    <footer class="doc-footer">
-      ${settings.defaultFooter ? `<p>${escapeHtml(settings.defaultFooter)}</p>` : ''}
-      <p>Designed and Developed by Arun Sanjeev M S</p>
-    </footer>
+    ${settings.defaultFooter ? `<footer class="doc-footer"><p>${escapeHtml(settings.defaultFooter)}</p></footer>` : ''}
   `;
 
   return `<!doctype html>
