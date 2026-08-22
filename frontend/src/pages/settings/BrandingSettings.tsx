@@ -49,8 +49,15 @@ export function BrandingSettings(): React.ReactElement {
   const contrast = primaryRgb ? contrastRatio(primaryRgb, '255 255 255') : null;
   const contrastOk = contrast !== null && contrast >= 4.5;
 
+  const uploadAsset = useAppMutation<unknown, { kind: 'logo' | 'favicon'; file: File }>({
+    mutationFn: ({ kind, file }) => settingsService.uploadBrandingAsset(kind, file),
+    invalidate: ['bootstrap'],
+    successMessage: 'Logo uploaded',
+  });
+
   const handleFile = (kind: 'logo' | 'favicon') => (e: React.ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
       toast.error('File too large', 'Logos and favicons must be under 2 MB.');
@@ -60,8 +67,7 @@ export function BrandingSettings(): React.ReactElement {
       toast.error('Unsupported file type', 'Use PNG, JPEG, WebP, SVG or ICO.');
       return;
     }
-    toast.info('Upload requires the backend', `Connect the API to store the ${kind}.`);
-    e.target.value = '';
+    uploadAsset.mutate({ kind, file });
   };
 
   return (
@@ -88,6 +94,7 @@ export function BrandingSettings(): React.ReactElement {
               variant="secondary"
               size="sm"
               className="mt-2"
+              loading={uploadAsset.isPending}
               onClick={() => fileRef.current?.click()}
             >
               <Upload className="h-3.5 w-3.5" />
