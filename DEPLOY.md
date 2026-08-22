@@ -41,10 +41,14 @@ Push this repo (including `render.yaml`) to GitHub, then in Render:
 **New → Blueprint** → pick the repo. Render reads `render.yaml` and creates
 **both** services in one go:
 
-- **`quotiva-api`** — Express backend, root `backend/`
-- **`quotiva-frontend`** — static Vite build, root `frontend/`, with a
-  catch-all rewrite to `index.html` so React Router's client-side routes
-  (e.g. `/invoices/123`) work on a hard refresh, not just 404s.
+- **`quotiva-api`** — Express backend, built with
+  `npm run build --workspace backend`
+- **`quotiva-frontend`** — static Vite build published from `frontend/dist`,
+  with a catch-all rewrite to `index.html` so React Router's client-side
+  routes (e.g. `/invoices/123`) work on a hard refresh, not just 404s.
+
+Both install from the repo root with `npm ci` — see the note under "Manual
+setup" below for why.
 
 Render will prompt you to fill in every variable marked `sync: false` in
 `render.yaml` before the first deploy — leave the two cross-service URL
@@ -86,13 +90,28 @@ Two separate services, same repo:
 | | `quotiva-api` | `quotiva-frontend` |
 |---|---|---|
 | Type | Web Service | Static Site |
-| Root directory | `backend` | `frontend` |
-| Build command | `npm install && npm run build` | `npm install && npm run build` |
-| Start / publish | `npm run start` | Publish directory: `dist` |
+| Root directory | *(leave blank — repo root)* | *(leave blank — repo root)* |
+| Build command | `npm ci && npm run build --workspace backend` | `npm ci && npm run build --workspace frontend` |
+| Start / publish | `npm run start --workspace backend` | Publish directory: `frontend/dist` |
 | Health check | `/api/health` | — |
 | Rewrite rule | — | `/*` → `/index.html` |
 
 Environment variables are the same as listed above.
+
+> **Leave the root directory blank on both services.** This is an
+> npm-workspaces monorepo with one `package-lock.json` at the root. Pointing a
+> service at `backend/` or `frontend/` and running `npm install` there makes
+> npm hoist a partial, lockfile-less tree to the repo root: it silently omits
+> the other workspace's packages, and can fail outright on a cross-workspace
+> binary conflict. `npm ci` at the root installs every workspace
+> deterministically from the committed lockfile.
+
+> **Anything needed to *build* must live in `dependencies`, not
+> `devDependencies`** — `typescript`, `vite`, and the `@types/*` packages
+> included. Render sets `NODE_ENV=production`, under which npm may skip
+> `devDependencies` entirely, and the build then fails on missing type
+> declarations. Both `package.json` files are already arranged this way; keep
+> new build-time tooling in `dependencies`.
 
 ## 4. Create your first account
 
@@ -127,11 +146,27 @@ email sending, recurring invoice generation, reminders, custom fields, and
 real backup export. These are scoped for a later phase — see
 `docs/10-roadmap.md` Phase 12 — and the UI says so rather than pretending.
 
-> PDF generation launches a headless Chromium (Puppeteer) inside the
-> `quotiva-api` process. `npm install` downloads it automatically during
-> Render's build — no extra config needed on the free-tier Node runtime. The
-> first PDF request after a cold start is slower (browser launch); after that
-> the browser instance is reused.
+> **PDF generation and Chromium.** PDFs are rendered by a headless Chromium
+> launched inside the `quotiva-api` process, via `puppeteer-core` plus
+> `@sparticuz/chromium` — a self-contained Linux build made for constrained
+> hosts like Render. Puppeteer's own bundled Chromium is *not* used: Render's
+> Node image lacks shared libraries it needs (`libnss3`, `libatk-bridge`, …)
+> and launches would hang instead of failing.
+>
+> That binary is Linux-only, so in development (`NODE_ENV` ≠ `production`) the
+> backend instead auto-detects a locally installed Chrome or Edge. No config
+> is needed either way, but PDF generation on a dev machine does require one
+> of those browsers installed.
+>
+> The browser is launched once and reused, so the first PDF after a cold start
+> is the slow one. Every stage has a bounded timeout, so a failure returns
+> `PDF_UNAVAILABLE` rather than hanging the request.
+>
+> Be aware that Chromium is memory-hungry and Render's free tier caps a
+> service at 512 MB. Occasional PDFs are usually fine; concurrent or frequent
+> generation can hit the limit and get the instance restarted. If you see
+> that, upgrade the `quotiva-api` plan — this is the one feature most likely
+> to outgrow the free tier.
 
 ## Local development against the real backend
 
