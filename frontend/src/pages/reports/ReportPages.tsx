@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/Toast';
 import { reportQueries, useCustomers } from '@/hooks/queries';
 import { useListParams } from '@/hooks/useListParams';
 import { useBusiness, useCurrency, usePermission } from '@/stores/BusinessContext';
+import { resolveDateRange } from '@/lib/dateRange';
 import { formatDate, formatMoney, formatNumber, formatPercent } from '@/lib/format';
 import type {
   CustomerReportRow,
@@ -92,9 +93,12 @@ function ReportShell<T extends object>({
         <DateRangePicker
           value={range}
           onChange={(next) => {
+            // Presets carry no dates of their own, so resolve them here — the
+            // API filters on explicit from/to only.
+            const resolved = resolveDateRange(next);
             list.setFilter('range', next.preset);
-            list.setFilter('from', next.from);
-            list.setFilter('to', next.to);
+            list.setFilter('from', resolved.from);
+            list.setFilter('to', resolved.to);
           }}
         />
         {extraFilters}
