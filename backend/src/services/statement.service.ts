@@ -5,6 +5,7 @@ import { d, round } from '../utils/money.js';
 import { getSettings } from './settings.service.js';
 
 export interface StatementEntry {
+  id: string;
   date: string;
   type: 'invoice' | 'payment' | 'adjustment';
   reference: string;
@@ -56,10 +57,11 @@ export async function buildCustomerStatement(
   if (invoiceError) throw new AppError(500, 'INTERNAL_ERROR', invoiceError.message);
   if (paymentError) throw new AppError(500, 'INTERNAL_ERROR', paymentError.message);
 
-  type Row = { date: string; type: 'invoice' | 'payment'; reference: string; description: string; debit: string | null; credit: string | null };
+  type Row = { id: string; date: string; type: 'invoice' | 'payment'; reference: string; description: string; debit: string | null; credit: string | null };
 
   const rows: Row[] = [
     ...(invoices ?? []).map((i) => ({
+      id: `invoice-${i['id'] as string}`,
       date: i['issue_date'] as string,
       type: 'invoice' as const,
       reference: (i['invoice_number'] as string) ?? '',
@@ -68,6 +70,7 @@ export async function buildCustomerStatement(
       credit: null,
     })),
     ...(payments ?? []).map((p) => ({
+      id: `payment-${p['id'] as string}`,
       date: p['payment_date'] as string,
       type: 'payment' as const,
       reference: (p['reference_number'] as string | null) ?? '',
@@ -98,6 +101,7 @@ export async function buildCustomerStatement(
 
     running = running.plus(delta);
     entries.push({
+      id: row.id,
       date: row.date,
       type: row.type,
       reference: row.reference,

@@ -510,6 +510,7 @@ export interface DashboardData {
 }
 
 export interface StatementEntry {
+  id: string;
   date: ISODate;
   type: 'invoice' | 'payment' | 'adjustment';
   reference: string;
