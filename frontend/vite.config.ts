@@ -2,14 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
-// GitHub Pages serves this as a project site at /<repo>/, so assets need that
-// prefix baked in at build time. Local dev and any other host (Render static
-// site, Vercel, Netlify, a custom domain) serve from the root, so this only
-// activates when the deploy workflow sets GITHUB_PAGES=true.
-const base = process.env['GITHUB_PAGES'] === 'true' ? '/Quotiva/' : '/';
-
 export default defineConfig({
-  base,
+  // Served from the root on Render (and in dev). Deep links are handled by the
+  // host rewriting every path to index.html — see render.yaml — not by any
+  // client-side path rewriting.
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: { '@': path.resolve(__dirname, './src') },
