@@ -251,8 +251,7 @@ totals          → subtotal, discounts, tax, charges, grand total
 payment         → bank / UPI / payment instructions
 notes           → "Notes"                heading + rich text     ← this feature
 terms           → "Terms & Conditions"   heading + rich text     ← this feature
-footer          → configurable business footer,
-                  then "Designed and Developed by Arun Sanjeev M S"
+footer          → configurable business footer (omitted entirely when unset)
 ```
 
 The two new blocks are partials (`_notes.hbs`, `_terms.hbs`) shared by all five templates. Each
@@ -357,9 +356,11 @@ cached per (document id, updated_at, template) alongside the generated PDF.
 The footer is a Puppeteer `footerTemplate` with a reserved bottom margin (`margin.bottom` ≥ footer
 height + 8mm), so page content physically cannot occupy the footer band. Content overlap is
 therefore structurally impossible, not merely avoided by spacing. `displayHeaderFooter: true` with
-`headerTemplate`/`footerTemplate` carrying the business footer text, page counter
-(`<span class="pageNumber"></span> / <span class="totalPages"></span>`), and the fixed
-"Designed and Developed by Arun Sanjeev M S" line per the selected template.
+`headerTemplate`/`footerTemplate` carrying the business footer text and page counter
+(`<span class="pageNumber"></span> / <span class="totalPages"></span>`) per the selected
+template. Generated documents carry no attribution line — a customer-facing document
+shows only what the business itself configured. The app's own UI footer is separate and
+still carries it (docs/01 §111).
 
 ### Verification
 
