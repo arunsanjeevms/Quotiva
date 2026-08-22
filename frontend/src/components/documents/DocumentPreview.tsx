@@ -321,13 +321,13 @@ export function DocumentPreview({ doc }: { doc: Doc }): React.ReactElement {
         </div>
       )}
 
-      {/* footer */}
-      <footer className="mt-8 border-t border-gray-200 pt-3 text-center text-[11px] text-gray-500">
-        {settings.defaultFooter && <p>{settings.defaultFooter}</p>}
-        <p className={cn(settings.defaultFooter && 'mt-1')}>
-          Designed and Developed by Arun Sanjeev M S
-        </p>
-      </footer>
+      {/* footer — the business's own footer text only, so nothing appears on a
+          customer-facing document that the business did not put there. */}
+      {settings.defaultFooter && (
+        <footer className="mt-8 border-t border-gray-200 pt-3 text-center text-[11px] text-gray-500">
+          <p>{settings.defaultFooter}</p>
+        </footer>
+      )}
     </>
   );
 
